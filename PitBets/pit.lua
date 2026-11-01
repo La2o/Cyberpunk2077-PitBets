@@ -22,6 +22,8 @@ function Pit.new(engine, rand)
     cleanupDelay = 20,
     requireLookAt = true, -- sabotage only the fighter you are looking at
     spawnTimeout = 15,
+    strayDistance = 25,   -- a fighter this far from the ring...
+    strayTime = 10,       -- ...for this long forfeits
     bookieDelay = 8,      -- head start before the muscle spawns
     bookieDistance = 25,  -- how far from the ring they spawn
   }
@@ -43,6 +45,7 @@ function Pit:reset()
   self.tick = 0
   self.provokeTimer = 0
   self.lostTimer = 0
+  self.strayTimer = 0
   self.heat = { acts = 0, caught = false, log = {} }
   self.lastHit = {}
   self.result = nil
@@ -111,8 +114,18 @@ function Pit:draft(side)
   local other = self.card[3 - side]
   if other and self:fighterEntity(3 - side) and self.E.sameEntity(self:fighterEntity(3 - side), ent) then return end
   local level = self.E.powerLevel(ent) or 10
-  local name = self.E.displayName(ent) or ("Local talent #" .. self.rand(10, 99))
+  -- Most NPCs share a generic game name ("NC Resident"), so give them a ring
+  -- handle and keep the game name as a label.
+  local origin = self.E.displayName(ent)
+  local otherName = other and other.name
+  local name = otherName
+  local guard = 0
+  while name == otherName and guard < 20 do
+    name = self:venue().handles[self.rand(1, #self:venue().handles)]
+    guard = guard + 1
+  end
   local f = Roster.makeFighter("local_", nil, name, self.rand, 25 + math.floor(level))
+  if origin then f.label = f.label .. " (" .. origin .. ")" end
   f.entityID = self.E.entityID(ent)
   f.drafted = true
   self.card[side] = f
@@ -160,14 +173,10 @@ function Pit:applyImplants(f, ent)
   end
 end
 
--- Gang fighters keep their gang's attitude to V (Tyger Claws went for V mid-
--- fight in testing). Moving them into V's own attitude group makes them
--- friendly to V; the fighter-vs-fighter hostility is set per agent on top.
-function Pit:pacify(f, ent)
-  local p = self.E.player()
-  f.origGroup = self.E.attitudeGroup(ent)
-  self.E.setAttitudeGroup(ent, self.E.attitudeGroup(p))
-  self.E.setAttitude(ent, p, "friendly")
+-- Neutral, not friendly: friendly NPCs can't be quickhacked, and real
+-- quickhacks are part of the sabotage game.
+function Pit:pacify(ent)
+  self.E.setAttitude(ent, self.E.player(), "neutral")
 end
 
 -- Betting -------------------------------------------------------------------
@@ -372,7 +381,6 @@ function Pit:cleanupCard()
         -- Leave the borrowed NPC as we found it.
         for _, list in pairs(f.mods or {}) do for _, m in ipairs(list) do self.E.removeStatMod(ent, m) end end
         if f.shredMod then self.E.removeStatMod(ent, f.shredMod) end
-        if f.origGroup then self.E.setAttitudeGroup(ent, f.origGroup) end
       end
       if f.owned then self.E.despawn(f.entityID) end
     end
@@ -416,7 +424,7 @@ function Pit:update(dt)
       for i = 1, 2 do
         local ent = self:fighterEntity(i)
         self:applyImplants(self.card[i], ent)
-        self:pacify(self.card[i], ent)
+        self:pacify(ent)
       end
       self.state = "betting"
       self.timer = self.cfg.bettingTime
@@ -446,6 +454,17 @@ function Pit:update(dt)
     if downA and downB then return self:resolve(0, "double knockout") end
     if downA then return self:resolve(2, "knockout") end
     if downB then return self:resolve(1, "knockout") end
+    -- Civilians flee and some NPCs wander off; leaving the ring forfeits.
+    local center = self.arena and self.arena.center
+    if center then
+      local sa = self.E.distance(self.E.position(a), center) > self.cfg.strayDistance
+      local sb = self.E.distance(self.E.position(b), center) > self.cfg.strayDistance
+      if sa or sb then self.strayTimer = self.strayTimer + step else self.strayTimer = 0 end
+      if self.strayTimer >= self.cfg.strayTime then
+        if sa and sb then return self:resolve(0, "no contest (both left the ring)") end
+        return self:resolve(sa and 2 or 1, "forfeit (opponent left the ring)")
+      end
+    end
     if self.elapsed >= self.cfg.fightTimeout then
       local ha, hb = self.E.healthPct(a) or 0, self.E.healthPct(b) or 0
       if math.abs(ha - hb) < 1 then return self:resolve(0, "split decision") end
@@ -456,10 +475,8 @@ function Pit:update(dt)
       self.provokeTimer = 0
       self.E.provoke(a, b)
       self.E.provoke(b, a)
-      -- Combat AI can drift back to its gang's grudges; keep V out of it.
-      local p = self.E.player()
-      self.E.setAttitude(a, p, "friendly")
-      self.E.setAttitude(b, p, "friendly")
+      self:pacify(a)
+      self:pacify(b)
     end
 
   elseif self.state == "result" then

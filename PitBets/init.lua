@@ -62,7 +62,14 @@ registerForEvent("onInit", function()
     local side = pit:sideOf(self)
     if not side then return end
     local inst = Engine.try(function() return evt.attackData:GetInstigator() end)
-    if inst and Engine.isPlayer(inst) then pit:onPlayerHit(side, os.clock()) end
+    if inst and Engine.isPlayer(inst) then
+      if mod.debug then
+        local kind = Engine.try(function() return tostring(evt.attackData:GetAttackType()) end)
+        local weapon = Engine.try(function() return tostring(evt.attackData:GetWeapon():GetItemID().id) end)
+        Engine.log(string.format("player hit fighter %d: attack=%s weapon=%s", side, tostring(kind), tostring(weapon)))
+      end
+      pit:onPlayerHit(side, os.clock())
+    end
   end)
 
   if mod.debug then require("debug_tools").watchPlayerHits(mod) end

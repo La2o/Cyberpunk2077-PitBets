@@ -136,9 +136,7 @@ test("full fight: bet on winner gets paid", function()
   E.money = 5000
   local a, b = toBetting(pit, E)
   truthy(a and b, "entities resolved")
-  eq(E.attitude[a.id .. ">player"], "friendly")
-  eq(a.group, "player", "fighter moved into V's attitude group")
-  eq(pit.card[1].origGroup, "gang")
+  eq(E.attitude[a.id .. ">player"], "neutral", "fighters stay hackable: neutral, not friendly")
   -- implants were applied as stat mods
   local modCount = 0
   for _ in pairs(E.mods) do modCount = modCount + 1 end
@@ -316,7 +314,8 @@ test("no records -> empty card, drafting fills it", function()
   local npc2 = E:addNPC({ level = 35 })
   E.look = npc1
   pit:draft(1)
-  eq(pit.card[1].name, "Street Vendor")
+  eq(pit.card[1].label, "Local Talent (Street Vendor)", "game name kept as label")
+  truthy(pit.card[1].name ~= "Street Vendor", "gets a ring handle")
   eq(pit.card[1].base, 45)
   pit:draft(2) -- same NPC refused
   eq(pit.card[2], nil)
@@ -333,8 +332,58 @@ test("no records -> empty card, drafting fills it", function()
   pit:clearPit()
   truthy(not E.despawned[npc1.id], "drafted NPCs are never deleted")
   for key, mod in pairs(E.mods) do truthy(mod.removed, "drafted mods removed: " .. key) end
-  eq(npc1.group, "gang", "drafted NPC attitude group restored")
   Roster.validate(allValid)
+end)
+
+test("two drafted NPCs with the same game name get different handles", function()
+  for _ = 1, 50 do
+    local pit, E = newPit()
+    pit:newCard()
+    E.look = E:addNPC({ level = 10, name = "NC Resident" }); pit:draft(1)
+    E.look = E:addNPC({ level = 10, name = "NC Resident" }); pit:draft(2)
+    truthy(pit.card[1].name ~= pit.card[2].name)
+  end
+end)
+
+test("fighter who leaves the ring forfeits", function()
+  local pit, E = newPit()
+  E.money = 1000
+  local a, b = toBetting(pit, E)
+  pit:placeBet(2, 100)
+  pit:ringBell()
+  a.pos = { x = 0, y = 60, z = 0 } -- ran 52 m from the ring centre
+  for _ = 1, 30 do pit:update(0.3) end
+  eq(pit.state, "fighting", "not yet: needs strayTime")
+  for _ = 1, 20 do pit:update(0.3) end
+  eq(pit.state, "result")
+  eq(pit.result.winner, 2)
+  truthy(pit.result.how:find("forfeit"))
+  eq(E.money, 900 + math.floor(100 * pit.bet.mult))
+end)
+
+test("wandering back resets the forfeit clock", function()
+  local pit, E = newPit()
+  local a = toBetting(pit, E)
+  pit:ringBell()
+  a.pos = { x = 0, y = 60, z = 0 }
+  for _ = 1, 30 do pit:update(0.3) end
+  a.pos = { x = 0, y = 8, z = 0 }
+  pit:update(0.3)
+  a.pos = { x = 0, y = 60, z = 0 }
+  for _ = 1, 30 do pit:update(0.3) end
+  eq(pit.state, "fighting")
+end)
+
+test("both leaving the ring is no contest with refund", function()
+  local pit, E = newPit()
+  E.money = 1000
+  local a, b = toBetting(pit, E)
+  pit:placeBet(1, 300)
+  pit:ringBell()
+  a.pos, b.pos = { x = 0, y = 60, z = 0 }, { x = 0, y = -60, z = 0 }
+  for _ = 1, 50 do pit:update(0.3) end
+  eq(pit.result.winner, 0)
+  eq(E.money, 1000)
 end)
 
 test("draft needs an NPC in sight", function()

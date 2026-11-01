@@ -208,15 +208,6 @@ function Engine.setAttitude(a, b, name)
   end)
 end
 
-function Engine.attitudeGroup(ent)
-  if not ent then return nil end
-  return try(function() return ent:GetAttitudeAgent():GetAttitudeGroup() end)
-end
-
-function Engine.setAttitudeGroup(ent, group)
-  if ent and group then pcall(function() ent:GetAttitudeAgent():SetAttitudeGroup(group) end) end
-end
-
 -- Push npc into combat against target.
 function Engine.provoke(npc, target)
   if not npc or not target then return end

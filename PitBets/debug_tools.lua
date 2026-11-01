@@ -30,8 +30,11 @@ end
 
 -- Logs every hit V takes: attacker record, whether it's one of ours, V's HP.
 function Debug.watchPlayerHits(mod)
+  -- Observe hooks the shared script function, so this fires for every
+  -- puppet that gets hit; keep only hits on V.
   Observe("PlayerPuppet", "OnHit", function(self, evt)
     pcall(function()
+      if not self:IsPlayer() then return end
       local inst = evt.attackData:GetInstigator()
       local rec = inst and idName(inst:GetRecordID()) or "?"
       local role = "other"
