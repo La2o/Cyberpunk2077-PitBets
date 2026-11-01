@@ -435,6 +435,14 @@ function Pit:update(dt)
 
   elseif self.state == "betting" then
     self.timer = self.timer - dt
+    -- Gunfire nearby makes neutral NPCs (mechs especially) pick V as a
+    -- threat; keep reasserting neutral while they wait for the bell.
+    self.provokeTimer = self.provokeTimer + dt
+    if self.provokeTimer >= 2 then
+      self.provokeTimer = 0
+      self:pacify(self:fighterEntity(1))
+      self:pacify(self:fighterEntity(2))
+    end
     if self.timer <= 0 then self:ringBell() end
 
   elseif self.state == "fighting" then

@@ -141,6 +141,16 @@ function Engine.entityID(ent) return try(function() return ent:GetEntityID() end
 
 -- NPC state ------------------------------------------------------------------
 
+-- True when a hit came from V. Damage-over-time ticks (bleed, burn) arrive
+-- as Effect attacks credited to V long after the shot; those don't count.
+function Engine.isPlayerDirectHit(evt)
+  return try(function()
+    local data = evt.attackData
+    if not data:GetInstigator():IsPlayer() then return false end
+    return data:GetAttackType() ~= gamedataAttackType.Effect
+  end) == true
+end
+
 function Engine.isNPC(obj)
   return try(function() return obj:IsNPC() end) == true
 end

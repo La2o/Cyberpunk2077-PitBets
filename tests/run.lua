@@ -98,6 +98,17 @@ test("rolled fighters are sane", function()
     end
   end
 end)
+test("mechs are rare: weighted template pick", function()
+  Roster.validate(allValid)
+  math.randomseed(11)
+  local mechs, n = 0, 9000
+  for _ = 1, n do
+    if Roster.rollFighter(Roster.venues[1], math.random).class == "mech" then mechs = mechs + 1 end
+  end
+  local share = mechs / n
+  truthy(share > 0.08 and share < 0.14, "mech share should be ~1/9, got " .. share)
+end)
+
 test("no valid records -> nil fighter", function()
   Roster.validate(function() return false end)
   eq(Roster.rollFighter(Roster.venues[1], math.random), nil)
@@ -195,6 +206,14 @@ test("defeated (not dead) counts as down", function()
   a.hp = 0
   pit:update(0.3)
   eq(pit.result.winner, 2)
+end)
+
+test("fighters kept neutral to V while waiting for the bell", function()
+  local pit, E = newPit()
+  local a = toBetting(pit, E)
+  E.attitude[a.id .. ">player"] = "hostile" -- e.g. V fired a gun nearby
+  pit:update(2.1)
+  eq(E.attitude[a.id .. ">player"], "neutral")
 end)
 
 test("bell rings itself after betting time", function()
@@ -703,6 +722,12 @@ test("engine calls the game API it means to", function()
   truthy(Engine.sameEntity(ent, Engine.getEntity(id)))
   truthy(not Engine.sameEntity(ent, other))
   eq(Engine.ram(), 8); Engine.spendRam(3); eq(Engine.ram(), 5)
+  local function hit(inst, kind) return { attackData = { GetInstigator = function() return inst end, GetAttackType = function() return kind end } } end
+  local player = Engine.player()
+  truthy(Engine.isPlayerDirectHit(hit(player, "Ranged")), "V's shot counts")
+  truthy(Engine.isPlayerDirectHit(hit(player, "Hack")), "V's quickhack counts")
+  truthy(not Engine.isPlayerDirectHit(hit(player, "Effect")), "bleed/burn ticks don't count")
+  truthy(not Engine.isPlayerDirectHit(hit(other, "Melee")), "NPC hits don't count")
   Engine.despawn(id); truthy(G.deleted[id])
   Engine.despawnAll(); eq(G.deletedTag, "PitBets")
   -- a broken API must not throw

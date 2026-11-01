@@ -39,12 +39,14 @@ From source, run `powershell -ExecutionPolicy Bypass -File build.ps1` and use th
    - *Short Circuit* (3 RAM): -25% health
    - *Cyberware Malfunction* (4 RAM): their best implant goes offline
    - *Armor Shred* (2 RAM): halves armor
-   Any shot, blade or quickhack you land on a fighter counts too. Every act can be spotted: Pacifica starts at 30%, Kabuki at 20%, and each act after that adds 12%.
+   Your own cyberdeck quickhacks, shots and blade hits on a fighter count too, at most one act per fighter every 3 s. Bleed and burn ticks afterwards don't count. Every act can be spotted: Pacifica starts at 30%, Kabuki at 20%, and each act after that adds 12%.
 7. A fight ends on a knockout, or goes to the judges (more health wins) after 120 s. A double KO refunds your stake.
 
 If you get caught, your stake is gone. You get an 8-second warning, and then three of the bookie's gang spawn 25 m from the ring, hostile to you. Run or fight. They hit hard, so don't stand still in the overlay. If you flatline, the fight night ends.
 
-Fighters are moved into V's attitude group while they're on the card, so they fight each other and leave you alone (unless you start swinging at them yourself).
+Fighters stay neutral to V, so they fight each other and leave you alone, and you can still quickhack them. Hit one yourself and it will come after you.
+
+**Drafting:** aim at any NPC and press **Draft looked-at NPC** to put them in a corner. They get a ring handle, and their game name shows as a label. Civilians usually run instead of fighting. A fighter who stays more than 25 m from the ring for 10 s forfeits. If both leave, it's a no-contest and your stake is refunded.
 
 ## How the odds work
 
@@ -68,9 +70,9 @@ Stats and settings are saved in `PitBets/stats.json`.
 
 - Fights happen wherever you're standing. There's no fixed arena location.
 - The CET overlay doesn't pause the game. The world keeps going while you click.
-- Mechs use quest records (`q114_militech_drop_mech`, `q003_militech_mech`). They spawn and fight, but they're heavy favourites.
+- Mechs use quest records (`q114_militech_drop_mech`, `q003_militech_mech`). They're rare (about 1 card in 5) and heavy favourites. Don't fire a gun next to one: in testing, a mech once turned its miniguns on V after V shot the other fighter.
+- Gunfire and combat draw in the local gang. On Valentinos turf they shot V while the bookies were already attacking.
 - Fighters can wander a bit during a fight.
-- Some gang NPCs nearby may join a fight.
 - The fight HUD stays visible in the pause menu.
 
 ## Development

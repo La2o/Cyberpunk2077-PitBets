@@ -45,13 +45,13 @@ Roster.venues = {
     handles = { "Tin Can Tomas", "Haitian Hurricane", "Big Ollie", "Mama Brick", "Rust Saint", "Low Tide",
                 "Concrete Dee", "Boardwalk Benny", "Hollow Point Hal", "Senora Steel" },
     templates = {
-      { class = "boxer",   records = { "Character.animals_grunt1_melee1_fists_mb", "Character.animals_bouncer1_melee1_fists_mb",
+      { class = "boxer",   weight = 4, records = { "Character.animals_grunt1_melee1_fists_mb", "Character.animals_bouncer1_melee1_fists_mb",
                                        "Character.animals_bouncer2_melee2_fists_mb" } },
-      { class = "brawler", records = { "Character.animals_bouncer2_hmelee2_fists_mba_rare", "Character.animals_elite2_hmelee2_fists_mba_rare",
+      { class = "brawler", weight = 4, records = { "Character.animals_bouncer2_hmelee2_fists_mba_rare", "Character.animals_elite2_hmelee2_fists_mba_rare",
                                        "Character.animals_bouncer3_hmelee3_fists_mba_elite", "Character.animals_elite3_hmelee3_fists_mba_elite",
                                        "Character.animals_grunt2_hmelee2_fists_wba_rare", "Character.voodooboys_grunt1_fmelee2rare_baseball_ma_rare" } },
       -- Mechs only exist as quest records; experimental.
-      { class = "mech",    records = { "Character.q114_militech_drop_mech", "Character.q003_militech_mech" } },
+      { class = "mech",    weight = 1, records = { "Character.q114_militech_drop_mech", "Character.q003_militech_mech" } },
     },
     bookies = { count = 3, records = { "Character.animals_grunt1_melee1_baseball_mb", "Character.animals_grunt2_melee2_hammer_mb",
                                        "Character.animals_bouncer1_melee1_baton_mb" } },
@@ -64,13 +64,13 @@ Roster.venues = {
     handles = { "Neon Kenji", "Twelve-Cut Mei", "Paper Lantern", "Iron Sato", "Kabuki Kid", "Static Hana",
                 "Noodle Shop Nobu", "Chrome Crane", "Midnight Rin", "Lucky Goro" },
     templates = {
-      { class = "boxer",   records = { "Character.tyger_claws_gangster1_melee1_fists_ma", "Character.tyger_claws_gangster1_melee1_fists_wa",
+      { class = "boxer",   weight = 4, records = { "Character.tyger_claws_gangster1_melee1_fists_ma", "Character.tyger_claws_gangster1_melee1_fists_wa",
                                        "Character.tyger_claws_biker1_melee1_fists_ma", "Character.tyger_claws_biker1_melee1_fists_wa",
                                        "Character.tyger_claws_gangster2_melee2_fists_ma" } },
-      { class = "brawler", records = { "Character.tyger_claws_martial_fmelee2_fists_ma_rare", "Character.tyger_claws_kunoichi_fmelee3_fists_ma_elite",
+      { class = "brawler", weight = 4, records = { "Character.tyger_claws_martial_fmelee2_fists_ma_rare", "Character.tyger_claws_kunoichi_fmelee3_fists_ma_elite",
                                        "Character.tyger_claws_martial_hmelee2_StrongArms_ma", "Character.tyger_claws_martial_hmelee3_StrongArms_mb",
                                        "Character.maelstrom_fast_fmelee3_mantis_wa_elite" } },
-      { class = "mech",    records = { "Character.q114_militech_drop_mech", "Character.q003_militech_mech" } },
+      { class = "mech",    weight = 1, records = { "Character.q114_militech_drop_mech", "Character.q003_militech_mech" } },
     },
     -- Grunt tier on purpose: getting caught should hurt, not be an instant flatline.
     bookies = { count = 3, records = { "Character.tyger_claws_gangster1_melee1_knife_ma", "Character.tyger_claws_biker1_melee1_baseball_ma",
@@ -153,7 +153,15 @@ function Roster.rollFighter(venue, rand, avoidName)
     if t.valid and #t.valid > 0 then table.insert(usable, t) end
   end
   if #usable == 0 then return nil end
-  local t = pick(usable, rand)
+  -- Weighted pick: mechs are the rare headliner, not every other card.
+  local total = 0
+  for _, u in ipairs(usable) do total = total + (u.weight or 1) end
+  local roll = rand(1, total)
+  local t
+  for _, u in ipairs(usable) do
+    roll = roll - (u.weight or 1)
+    if roll <= 0 then t = u; break end
+  end
   local name = pick(venue.handles, rand)
   local guard = 0
   while name == avoidName and guard < 20 do name = pick(venue.handles, rand); guard = guard + 1 end

@@ -4,7 +4,7 @@ local M = { money = 777, ram = 8, entities = {}, deleted = {}, removedMods = {} 
 local saved = {}
 local names = { "Game", "TweakDB", "ItemID", "TweakDBID", "CName", "Vector4", "Quaternion", "DynamicEntitySpec",
   "RPGManager", "gamedataStatType", "gameStatModifierType", "gamedataStatPoolType", "EAIAttitude",
-  "ScriptedPuppet", "NPCPuppet", "gamedataNPCHighLevelState" }
+  "ScriptedPuppet", "NPCPuppet", "gamedataNPCHighLevelState", "gamedataAttackType" }
 
 M.EAIAttitude = { AIA_Friendly = 0, AIA_Neutral = 1, AIA_Hostile = 2 }
 
@@ -96,6 +96,7 @@ local function install()
   G.ScriptedPuppet = { IsDefeated = function(e) return false end }
   G.NPCPuppet = { ChangeHighLevelState = function(e, s) assert(s) end }
   G.gamedataNPCHighLevelState = { Combat = "Combat" }
+  G.gamedataAttackType = { Effect = "Effect", Ranged = "Ranged", Hack = "Hack", Melee = "Melee" }
   for _, n in ipairs(names) do saved[n] = rawget(_G, n); _G[n] = G[n] end
   saved.print = print
   print = function() end

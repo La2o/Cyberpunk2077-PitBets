@@ -61,8 +61,7 @@ registerForEvent("onInit", function()
     if not pit or (pit.state ~= "betting" and pit.state ~= "fighting") then return end
     local side = pit:sideOf(self)
     if not side then return end
-    local inst = Engine.try(function() return evt.attackData:GetInstigator() end)
-    if inst and Engine.isPlayer(inst) then
+    if Engine.isPlayerDirectHit(evt) then
       if mod.debug then
         local kind = Engine.try(function() return tostring(evt.attackData:GetAttackType()) end)
         local weapon = Engine.try(function() return tostring(evt.attackData:GetWeapon():GetItemID().id) end)
