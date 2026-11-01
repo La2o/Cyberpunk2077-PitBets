@@ -1,5 +1,7 @@
 # Pit Bets
 
+**[Download on Nexus Mods](https://www.nexusmods.com/cyberpunk2077/mods/36869)**
+
 A Cyber Engine Tweaks mod for Cyberpunk 2077. Bet eddies on underground fights between NPCs in Pacifica and Kabuki: boxers, chromed brawlers, even mechs. Each fighter's cyberware sets their odds, and it also buffs them in the actual fight. You can sabotage a fighter with quickhacks before the bell, but if the bookies catch you, your bet is void and they come for you.
 
 ![Fight card](docs/screenshots/1-card.jpg)

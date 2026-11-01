@@ -3,7 +3,7 @@
 **Name:** Pit Bets - Underground Fight Betting
 **Category:** Gameplay
 **Requirements:** Cyber Engine Tweaks, Codeware
-**Upload:** `dist/PitBets-1.0.0.zip` (main file)
+**Published:** https://www.nexusmods.com/cyberpunk2077/mods/36869 (mod 36869, v1.0.0)
 **Images:** `docs/screenshots/1-card.jpg` (primary), then 2 to 6 in order
 
 ---
