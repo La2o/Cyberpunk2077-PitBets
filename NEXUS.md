@@ -47,7 +47,7 @@ Edit [i]roster.lua[/i] to add fighter records, cyberware and fighter names. The 
 [b]Known limits[/b]
 Fights happen where you stand. Mechs are experimental. Nearby gang members may join in.
 
-Source: <GITHUB URL>
+Source: https://github.com/La2o/PitBets
 ```
 
 ## Tags
