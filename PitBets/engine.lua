@@ -20,6 +20,16 @@ end
 
 function Engine.player() return try(function() return Game.GetPlayer() end) end
 
+-- False on the main menu and while a save is loading.
+function Engine.sessionActive()
+  if try(function() return Game.GetSystemRequestsHandler():IsPreGame() end) == true then return false end
+  return Engine.player() ~= nil
+end
+
+function Engine.playerDead()
+  return try(function() return Game.GetPlayer():IsDead() end) == true
+end
+
 function Engine.hasCodeware()
   return try(function() return Game.GetDynamicEntitySystem() ~= nil end) == true
 end
@@ -196,6 +206,15 @@ function Engine.setAttitude(a, b, name)
     a:GetAttitudeAgent():SetAttitudeTowards(b:GetAttitudeAgent(), att)
     b:GetAttitudeAgent():SetAttitudeTowards(a:GetAttitudeAgent(), att)
   end)
+end
+
+function Engine.attitudeGroup(ent)
+  if not ent then return nil end
+  return try(function() return ent:GetAttitudeAgent():GetAttitudeGroup() end)
+end
+
+function Engine.setAttitudeGroup(ent, group)
+  if ent and group then pcall(function() ent:GetAttitudeAgent():SetAttitudeGroup(group) end) end
 end
 
 -- Push npc into combat against target.

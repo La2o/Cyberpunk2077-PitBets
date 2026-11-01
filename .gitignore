@@ -1,3 +1,6 @@
 dist/
 PitBets/stats.json
 *.log
+PitBets/records_dump.txt
+PitBets/*.log
+PitBets/db.sqlite3

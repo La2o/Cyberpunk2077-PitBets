@@ -36,6 +36,8 @@ function Fake.new()
   E.log = function() end
   E.try = function(fn, ...) local ok, r = pcall(fn, ...); if ok then return r end end
   E.player = function() if E.noPlayer then return nil end return playerObj end
+  E.playerDead = function() return E.dead == true end
+  E.sessionActive = function() return not E.noPlayer end
   E.arenaPoints = function(d, s)
     return { center = { x = 0, y = d, z = 0 }, red = { x = -s, y = d, z = 0 }, blue = { x = s, y = d, z = 0 } }
   end
@@ -85,6 +87,8 @@ function Fake.new()
   E.provoke = function(npc, target)
     if npc and target then E.provoked[npc.id] = (E.provoked[npc.id] or 0) + 1 end
   end
+  E.attitudeGroup = function(ent) return ent and (ent.group or (ent.isPlayer and "player") or "gang") end
+  E.setAttitudeGroup = function(ent, g) if ent and g then ent.group = g end end
   E.lookAt = function() return E.look end
   E.ram = function() return E.ramValue end
   E.spendRam = function(n) E.ramValue = E.ramValue - n end

@@ -4,6 +4,7 @@
 **Category:** Gameplay
 **Requirements:** Cyber Engine Tweaks, Codeware
 **Upload:** `dist/PitBets-1.0.0.zip` (main file)
+**Images:** `docs/screenshots/1-card.jpg` (primary), then 2 to 6 in order
 
 ---
 
@@ -45,7 +46,9 @@ Vortex / MO2, or extract into the game folder.
 Edit [i]roster.lua[/i] to add fighter records, cyberware and fighter names. The in-game [i]Record check[/i] panel shows which records loaded.
 
 [b]Known limits[/b]
-Fights happen where you stand. Mechs are experimental. Nearby gang members may join in.
+Fights happen where you stand. The CET overlay does not pause the game, so the bookies will not wait for you. Nearby gang members may join in.
+
+Tested on 2.5 with CET and Codeware 1.21.
 
 Source: https://github.com/La2o/PitBets
 ```

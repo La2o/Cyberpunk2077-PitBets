@@ -13,6 +13,7 @@ local mod = {
   windowOpen = true,
   report = {},
   codeware = false,
+  debug = false, -- true logs every hit V takes to the CET console
 }
 
 local function loadStats()
@@ -63,6 +64,14 @@ registerForEvent("onInit", function()
     local inst = Engine.try(function() return evt.attackData:GetInstigator() end)
     if inst and Engine.isPlayer(inst) then pit:onPlayerHit(side, os.clock()) end
   end)
+
+  if mod.debug then require("debug_tools").watchPlayerHits(mod) end
+
+  -- V leaving the world (load, quit to menu) ends the night before any
+  -- entity we know about is freed.
+  Observe("PlayerPuppet", "OnDetach", function()
+    if mod.pit then mod.pit:dropSession() end
+  end)
 end)
 
 registerForEvent("onUpdate", function(dt)
@@ -74,6 +83,7 @@ registerForEvent("onOverlayClose", function() mod.overlay = false; if mod.pit th
 
 registerForEvent("onDraw", function()
   if not mod.pit then return end
+  if not Engine.sessionActive() then return end
   if mod.overlay and mod.windowOpen then UI.window(mod) end
   if not mod.overlay then UI.hud(mod) end
 end)
@@ -84,6 +94,10 @@ end)
 
 registerHotkey("pitbets_bell", "Ring the bell (start the fight)", function()
   if mod.pit then mod.pit:ringBell() end
+end)
+
+registerHotkey("pitbets_dump", "Dump character records (modders)", function()
+  require("debug_tools").dumpRecords()
 end)
 
 registerForEvent("onShutdown", function()

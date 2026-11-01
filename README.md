@@ -2,9 +2,18 @@
 
 A Cyber Engine Tweaks mod for Cyberpunk 2077. Bet eddies on underground fights between NPCs in Pacifica and Kabuki: boxers, chromed brawlers, even mechs. Each fighter's cyberware sets their odds, and it also buffs them in the actual fight. You can sabotage a fighter with quickhacks before the bell, but if the bookies catch you, your bet is void and they come for you.
 
+![Fight card](docs/screenshots/1-card.jpg)
+
+| | |
+|---|---|
+| ![Book open with a mech](docs/screenshots/2-book-open-mech.jpg) | ![Sabotage](docs/screenshots/3-sabotage.jpg) |
+| ![Caught: the bookies' muscle arrives](docs/screenshots/4-caught-bookies.jpg) | ![Fight HUD](docs/screenshots/5-fight-hud.jpg) |
+
+![Payout](docs/screenshots/6-payout.jpg)
+
 ## Requirements
 
-- Cyberpunk 2077 2.x
+- Cyberpunk 2077 2.x (tested on 2.5 with CET, Codeware 1.21)
 - [Cyber Engine Tweaks](https://www.nexusmods.com/cyberpunk2077/mods/107)
 - [Codeware](https://www.nexusmods.com/cyberpunk2077/mods/7780) (spawns the fighters. Without it you can still draft fighters from the crowd.)
 
@@ -16,7 +25,7 @@ Extract the release zip into your game folder, or install it with Vortex / MO2. 
 Cyberpunk 2077/bin/x64/plugins/cyber_engine_tweaks/mods/PitBets/
 ```
 
-From source, run `build.ps1` and use the zip in `dist/`, or copy the `PitBets` folder there yourself.
+From source, run `powershell -ExecutionPolicy Bypass -File build.ps1` and use the zip in `dist/`, or copy the `PitBets` folder there yourself.
 
 ## How to play
 
@@ -33,7 +42,9 @@ From source, run `build.ps1` and use the zip in `dist/`, or copy the `PitBets` f
    Any shot, blade or quickhack you land on a fighter counts too. Every act can be spotted: Pacifica starts at 30%, Kabuki at 20%, and each act after that adds 12%.
 7. A fight ends on a knockout, or goes to the judges (more health wins) after 120 s. A double KO refunds your stake.
 
-If you get caught, your stake is gone and three of the bookie's gang spawn around the ring, hostile to you.
+If you get caught, your stake is gone. You get an 8-second warning, and then three of the bookie's gang spawn 25 m from the ring, hostile to you. Run or fight. They hit hard, so don't stand still in the overlay. If you flatline, the fight night ends.
+
+Fighters are moved into V's attitude group while they're on the card, so they fight each other and leave you alone (unless you start swinging at them yourself).
 
 ## How the odds work
 
@@ -45,6 +56,7 @@ Implants also apply real stat modifiers (max-health multiplier and armor). That 
 
 - **Toggle Pit Bets window**
 - **Ring the bell**
+- **Dump character records (modders)**: writes every character record ID to `PitBets/records_dump.txt`, for picking new fighters
 
 ## Customising
 
@@ -55,9 +67,11 @@ Stats and settings are saved in `PitBets/stats.json`.
 ## Known limits
 
 - Fights happen wherever you're standing. There's no fixed arena location.
-- NPCs use their own weapons. Choose melee records if you want fist fights.
-- Mech records are experimental, and their AI may not engage.
+- The CET overlay doesn't pause the game. The world keeps going while you click.
+- Mechs use quest records (`q114_militech_drop_mech`, `q003_militech_mech`). They spawn and fight, but they're heavy favourites.
+- Fighters can wander a bit during a fight.
 - Some gang NPCs nearby may join a fight.
+- The fight HUD stays visible in the pause menu.
 
 ## Development
 
@@ -77,6 +91,9 @@ Layout:
 | `roster.lua` | Data: fighters, cyberware, venues, sabotage |
 | `odds.lua` | Odds, payouts, detection math |
 | `ui.lua` | ImGui window and in-game HUD |
+| `debug_tools.lua` | Record dump and the optional hit logger (`debug = true` in `init.lua`) |
+
+Engine rule learned the hard way: never keep an entity handle across frames. Look fighters up by ID each time. A stale handle read during a save load crashes the game, and `pcall` can't catch that.
 
 ## License
 

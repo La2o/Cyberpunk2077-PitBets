@@ -22,6 +22,8 @@ function Pit.new(engine, rand)
     cleanupDelay = 20,
     requireLookAt = true, -- sabotage only the fighter you are looking at
     spawnTimeout = 15,
+    bookieDelay = 8,      -- head start before the muscle spawns
+    bookieDistance = 25,  -- how far from the ring they spawn
   }
   self.venueIndex = 1
   self.stake = 500
@@ -53,11 +55,19 @@ function Pit:say(msg)
   self.E.notify(msg)
 end
 
+-- Always look fighters up by ID: a handle cached across frames can point at a
+-- freed entity after a save load, and touching it crashes the game.
+function Pit:fighterEntity(i)
+  local f = self.card and self.card[i]
+  if not f or not f.entityID then return nil end
+  return self.E.getEntity(f.entityID)
+end
+
 function Pit:sideOf(ent)
   if not self.card or not ent then return nil end
   for i = 1, 2 do
-    local f = self.card[i]
-    if f and f.entity and self.E.sameEntity(f.entity, ent) then return i end
+    local fe = self:fighterEntity(i)
+    if fe and self.E.sameEntity(fe, ent) then return i end
   end
   return nil
 end
@@ -99,11 +109,10 @@ function Pit:draft(side)
   end
   if self:sideOf(ent) then self:say("They're already on the card."); return end
   local other = self.card[3 - side]
-  if other and other.entity and self.E.sameEntity(other.entity, ent) then return end
+  if other and self:fighterEntity(3 - side) and self.E.sameEntity(self:fighterEntity(3 - side), ent) then return end
   local level = self.E.powerLevel(ent) or 10
   local name = self.E.displayName(ent) or ("Local talent #" .. self.rand(10, 99))
   local f = Roster.makeFighter("local_", nil, name, self.rand, 25 + math.floor(level))
-  f.entity = ent
   f.entityID = self.E.entityID(ent)
   f.drafted = true
   self.card[side] = f
@@ -140,15 +149,25 @@ function Pit:openBook()
 end
 
 -- Implants become real stat modifiers on the NPC.
-function Pit:applyImplants(f)
+function Pit:applyImplants(f, ent)
   f.mods = {}
   for _, key in ipairs(f.implants) do
     local cw = Roster.cyberware[key]
     local list = {}
-    if cw.hp then table.insert(list, self.E.addStatMod(f.entity, "Health", "Multiplier", cw.hp)) end
-    if cw.armor then table.insert(list, self.E.addStatMod(f.entity, "Armor", "Additive", cw.armor)) end
+    if cw.hp then table.insert(list, self.E.addStatMod(ent, "Health", "Multiplier", cw.hp)) end
+    if cw.armor then table.insert(list, self.E.addStatMod(ent, "Armor", "Additive", cw.armor)) end
     f.mods[key] = list
   end
+end
+
+-- Gang fighters keep their gang's attitude to V (Tyger Claws went for V mid-
+-- fight in testing). Moving them into V's own attitude group makes them
+-- friendly to V; the fighter-vs-fighter hostility is set per agent on top.
+function Pit:pacify(f, ent)
+  local p = self.E.player()
+  f.origGroup = self.E.attitudeGroup(ent)
+  self.E.setAttitudeGroup(ent, self.E.attitudeGroup(p))
+  self.E.setAttitude(ent, p, "friendly")
 end
 
 -- Betting -------------------------------------------------------------------
@@ -175,8 +194,12 @@ function Pit:caught(reason)
     self.bet.void = true
     self.stats.lost = self.stats.lost + self.bet.stake
   end
-  self:say("The bookies saw that (" .. reason .. "). Your bet is void and they're coming for you!")
-  self:sendBookies()
+  -- Give the player a head start: the muscle shows up after a delay.
+  self.bookiesDue = self.cfg.bookieDelay
+  self.bookieCenter = (self.arena and self.arena.center) or self.E.position(self.E.player())
+  self.bookieFine = (self.bet and self.bet.stake) or 1000
+  self:say(string.format("The bookies saw that (%s). Bet void - their muscle arrives in %ds. Run or fight!",
+    reason, math.floor(self.cfg.bookieDelay)))
 end
 
 -- Every sabotage act risks detection; each act makes the next riskier.
@@ -190,25 +213,26 @@ end
 function Pit:sabotageTarget(side)
   if self.state ~= "betting" and self.state ~= "fighting" then return nil, "No fight on." end
   local f = self.card[side]
-  if not f or not f.entity then return nil, "Fighter not in reach." end
+  local ent = self:fighterEntity(side)
+  if not f or not ent then return nil, "Fighter not in reach." end
   if self.cfg.requireLookAt then
     local look = self.E.lookAt()
-    if not look or not self.E.sameEntity(look, f.entity) then return nil, "Look at " .. f.name .. " to hack them." end
+    if not look or not self.E.sameEntity(look, ent) then return nil, "Look at " .. f.name .. " to hack them." end
   end
-  return f
+  return f, ent
 end
 
 function Pit:sabotage(side, sabId)
   local def
   for _, s in ipairs(Roster.sabotage) do if s.id == sabId then def = s end end
-  local f, err = self:sabotageTarget(side)
-  if not f then self:say(err); return false end
+  local f, ent = self:sabotageTarget(side)
+  if not f then self:say(ent); return false end
   if self.E.ram() < def.ram then self:say("Not enough RAM for " .. def.name .. "."); return false end
   f.sabotaged = f.sabotaged or {}
   if f.sabotaged[sabId] then self:say(f.name .. " already got " .. def.name .. "."); return false end
 
   if sabId == "shortcircuit" then
-    self.E.damagePct(f.entity, 25)
+    self.E.damagePct(ent, 25)
   elseif sabId == "malfunction" then
     local best, bestRating
     for _, key in ipairs(f.implants) do
@@ -216,11 +240,11 @@ function Pit:sabotage(side, sabId)
       if not (f.disabled and f.disabled[key]) and (not bestRating or cw.rating > bestRating) then best, bestRating = key, cw.rating end
     end
     if not best then self:say(f.name .. " has no chrome to glitch."); return false end
-    for _, mod in ipairs((f.mods or {})[best] or {}) do self.E.removeStatMod(f.entity, mod) end
+    for _, mod in ipairs((f.mods or {})[best] or {}) do self.E.removeStatMod(ent, mod) end
     f.disabled = f.disabled or {}
     f.disabled[best] = true
   elseif sabId == "shred" then
-    f.shredMod = self.E.addStatMod(f.entity, "Armor", "Multiplier", 0.5)
+    f.shredMod = self.E.addStatMod(ent, "Armor", "Multiplier", 0.5)
   end
 
   self.E.spendRam(def.ram)
@@ -243,17 +267,17 @@ end
 function Pit:sendBookies()
   local v = self:venue()
   local records = v.bookies.valid or {}
-  local p = self.E.player()
-  local center = (self.arena and self.arena.center) or (p and self.E.position(p))
+  local center = self.bookieCenter
   if #records == 0 or not center then
-    local fine = math.min(self.E.getMoney(), (self.bet and self.bet.stake) or 1000)
+    local fine = math.min(self.E.getMoney(), self.bookieFine or 1000)
     self.E.takeMoney(fine)
     self:say("No muscle nearby - they took " .. fine .. " eddies off you instead.")
     return
   end
+  local r = self.cfg.bookieDistance
   for i = 1, v.bookies.count do
     local ang = (i / v.bookies.count) * 2 * math.pi
-    local pos = self.E.offset(center, math.cos(ang) * 12, math.sin(ang) * 12)
+    local pos = self.E.offset(center, math.cos(ang) * r, math.sin(ang) * r)
     local id = self.E.spawn(records[self.rand(1, #records)], pos, center)
     if id then table.insert(self.bookies, { id = id, hostile = false, age = 0 }) end
   end
@@ -283,7 +307,7 @@ end
 
 function Pit:ringBell()
   if self.state ~= "betting" then return end
-  local a, b = self.card[1].entity, self.card[2].entity
+  local a, b = self:fighterEntity(1), self:fighterEntity(2)
   self.E.setAttitude(a, b, "hostile")
   self.E.provoke(a, b)
   self.E.provoke(b, a)
@@ -319,7 +343,7 @@ function Pit:resolve(winner, how)
   end
   self.result = { winner = winner, how = how, paid = paid, text = text }
   -- Let the survivor stop swinging.
-  self.E.setAttitude(self.card[1].entity, self.card[2].entity, "neutral")
+  self.E.setAttitude(self:fighterEntity(1), self:fighterEntity(2), "neutral")
   self.state = "result"
   self.timer = self.cfg.cleanupDelay
   self:say(text)
@@ -343,11 +367,12 @@ function Pit:cleanupCard()
   for i = 1, 2 do
     local f = self.card[i]
     if f then
-      local ent = f.entity or self.E.getEntity(f.entityID)
+      local ent = self.E.getEntity(f.entityID)
       if ent and f.drafted then
         -- Leave the borrowed NPC as we found it.
         for _, list in pairs(f.mods or {}) do for _, m in ipairs(list) do self.E.removeStatMod(ent, m) end end
         if f.shredMod then self.E.removeStatMod(ent, f.shredMod) end
+        if f.origGroup then self.E.setAttitudeGroup(ent, f.origGroup) end
       end
       if f.owned then self.E.despawn(f.entityID) end
     end
@@ -356,28 +381,42 @@ function Pit:cleanupCard()
 end
 
 function Pit:update(dt)
-  self:updateBookies(dt)
-  if not self.E.player() then
-    -- Back at the main menu / loading: everything we spawned is gone.
-    if self.state ~= "idle" then self:reset() end
-    self.bookies = {}
+  if not self.E.sessionActive() then
+    self:dropSession()
     return
+  end
+  self:updateBookies(dt)
+
+  if self.E.playerDead() then
+    if self.state ~= "idle" or #self.bookies > 0 or self.bookiesDue then
+      self:cancel("you flatlined.")
+      for _, b in ipairs(self.bookies) do self.E.despawn(b.id) end
+      self.bookies = {}
+      self.bookiesDue = nil
+    end
+    return
+  end
+
+  if self.bookiesDue then
+    self.bookiesDue = self.bookiesDue - dt
+    if self.bookiesDue <= 0 then
+      self.bookiesDue = nil
+      self:sendBookies()
+      self:say("The bookies' muscle is here!")
+    end
   end
 
   if self.state == "spawning" then
     self.timer = self.timer - dt
     local ready = true
     for i = 1, 2 do
-      local f = self.card[i]
-      f.entity = self.E.getEntity(f.entityID)
-      if not f.entity then ready = false end
+      if not self:fighterEntity(i) then ready = false end
     end
     if ready then
-      local p = self.E.player()
       for i = 1, 2 do
-        local f = self.card[i]
-        self:applyImplants(f)
-        self.E.setAttitude(f.entity, p, "neutral")
+        local ent = self:fighterEntity(i)
+        self:applyImplants(self.card[i], ent)
+        self:pacify(self.card[i], ent)
       end
       self.state = "betting"
       self.timer = self.cfg.bettingTime
@@ -388,7 +427,6 @@ function Pit:update(dt)
 
   elseif self.state == "betting" then
     self.timer = self.timer - dt
-    for i = 1, 2 do self.card[i].entity = self.E.getEntity(self.card[i].entityID) or self.card[i].entity end
     if self.timer <= 0 then self:ringBell() end
 
   elseif self.state == "fighting" then
@@ -397,9 +435,7 @@ function Pit:update(dt)
     if self.tick < 0.25 then return end
     local step = self.tick
     self.tick = 0
-    local a = self.E.getEntity(self.card[1].entityID)
-    local b = self.E.getEntity(self.card[2].entityID)
-    self.card[1].entity, self.card[2].entity = a or self.card[1].entity, b or self.card[2].entity
+    local a, b = self:fighterEntity(1), self:fighterEntity(2)
     if not a and not b then
       self.lostTimer = self.lostTimer + step
       if self.lostTimer > 8 then self:cancel("fighters out of sight.") end
@@ -420,12 +456,24 @@ function Pit:update(dt)
       self.provokeTimer = 0
       self.E.provoke(a, b)
       self.E.provoke(b, a)
+      -- Combat AI can drift back to its gang's grudges; keep V out of it.
+      local p = self.E.player()
+      self.E.setAttitude(a, p, "friendly")
+      self.E.setAttitude(b, p, "friendly")
     end
 
   elseif self.state == "result" then
     self.timer = self.timer - dt
     if self.timer <= 0 then self:clearPit() end
   end
+end
+
+-- The world is gone (main menu, save loading): forget everything without
+-- touching any entity.
+function Pit:dropSession()
+  if self.state ~= "idle" then self:reset() end
+  self.bookies = {}
+  self.bookiesDue = nil
 end
 
 function Pit:clearPit()

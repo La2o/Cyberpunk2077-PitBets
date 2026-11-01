@@ -128,7 +128,7 @@ local function toBetting(pit, E)
   eq(pit.state, "spawning")
   pit:update(0.1)
   eq(pit.state, "betting")
-  return pit.card[1].entity, pit.card[2].entity
+  return E.entities[pit.card[1].entityID], E.entities[pit.card[2].entityID]
 end
 
 test("full fight: bet on winner gets paid", function()
@@ -136,7 +136,9 @@ test("full fight: bet on winner gets paid", function()
   E.money = 5000
   local a, b = toBetting(pit, E)
   truthy(a and b, "entities resolved")
-  eq(E.attitude[a.id .. ">player"], "neutral")
+  eq(E.attitude[a.id .. ">player"], "friendly")
+  eq(a.group, "player", "fighter moved into V's attitude group")
+  eq(pit.card[1].origGroup, "gang")
   -- implants were applied as stat mods
   local modCount = 0
   for _ in pairs(E.mods) do modCount = modCount + 1 end
@@ -169,7 +171,7 @@ test("losing bet", function()
   local a = toBetting(pit, E)
   pit:placeBet(2, 500)
   pit:ringBell()
-  pit.card[2].entity.dead = true
+  E.entities[pit.card[2].entityID].dead = true
   pit:update(0.3)
   eq(pit.result.winner, 1)
   eq(E.money, 1500)
@@ -331,6 +333,7 @@ test("no records -> empty card, drafting fills it", function()
   pit:clearPit()
   truthy(not E.despawned[npc1.id], "drafted NPCs are never deleted")
   for key, mod in pairs(E.mods) do truthy(mod.removed, "drafted mods removed: " .. key) end
+  eq(npc1.group, "gang", "drafted NPC attitude group restored")
   Roster.validate(allValid)
 end)
 
@@ -367,7 +370,7 @@ test("sabotage: malfunction disables best implant", function()
   local a, b = toBetting(pit, E)
   local f = pit.card[2]
   f.implants = { "biomon", "sandy" }
-  pit:applyImplants(f)
+  pit:applyImplants(f, b)
   E.ramValue, E.look = 10, b
   truthy(pit:sabotage(2, "malfunction"))
   truthy(f.disabled.sandy and not f.disabled.biomon)
@@ -394,7 +397,14 @@ test("caught: bet void, bookies spawn hostile, no payout", function()
   truthy(pit.bet.void)
   eq(pit.stats.timesCaught, 1)
   eq(pit.stats.lost, 1000)
+  eq(#pit.bookies, 0, "muscle is delayed")
+  truthy(pit.bookiesDue)
+  pit:update(pit.cfg.bookieDelay - 1)
+  eq(#pit.bookies, 0)
+  pit:update(1.5)
   eq(#pit.bookies, Roster.venues[1].bookies.count)
+  local bk1 = E.entities[pit.bookies[1].id]
+  near(E.distance(bk1.pos, pit.arena.center), pit.cfg.bookieDistance, 0.01, "spawn distance")
   pit:update(0.1)
   for _, bk in ipairs(pit.bookies) do
     truthy(bk.hostile)
@@ -420,9 +430,53 @@ test("caught with no bookie records -> fine instead", function()
   pit:placeBet(1, 1000)
   E.ramValue, E.look = 10, b
   pit:sabotage(2, "shred")
+  pit:update(pit.cfg.bookieDelay + 1)
   eq(#pit.bookies, 0)
   eq(E.money, 1000) -- 3000 - 1000 stake - 1000 fine
   Roster.validate(allValid)
+end)
+
+test("muscle still comes after the fight is cleared", function()
+  local pit, E = newPit({ 0.0 })
+  local a, b = toBetting(pit, E)
+  E.ramValue, E.look = 10, b
+  pit:sabotage(2, "shred")
+  pit:cancel("walked off")
+  eq(pit.state, "idle")
+  pit:update(pit.cfg.bookieDelay + 1)
+  eq(#pit.bookies, Roster.venues[1].bookies.count)
+end)
+
+test("player death ends the night and clears bookies", function()
+  local pit, E = newPit({ 0.0 })
+  E.money = 1000
+  local a, b = toBetting(pit, E)
+  pit:placeBet(1, 400)
+  E.ramValue, E.look = 10, b
+  pit:sabotage(2, "shred")
+  pit:update(pit.cfg.bookieDelay + 1)
+  local ids = {}
+  for _, bk in ipairs(pit.bookies) do table.insert(ids, bk.id) end
+  truthy(#ids > 0)
+  E.dead = true
+  pit:update(0.1)
+  eq(pit.state, "idle")
+  eq(#pit.bookies, 0)
+  for _, id in ipairs(ids) do truthy(E.despawned[id], "bookie despawned") end
+  truthy(E.despawned[a.id], "fighters despawned")
+  eq(E.money, 600, "void bet not refunded")
+end)
+
+test("player death mid-fight refunds a live bet", function()
+  local pit, E = newPit({ 0.99 })
+  E.money = 1000
+  toBetting(pit, E)
+  pit:placeBet(2, 300)
+  pit:ringBell()
+  E.dead = true
+  pit:update(0.3)
+  eq(pit.state, "idle")
+  eq(E.money, 1000)
 end)
 
 test("player hits register as interference, throttled", function()
@@ -445,6 +499,7 @@ test("player gone (main menu) resets", function()
   E.noPlayer = true
   pit:update(0.1)
   eq(pit.state, "idle")
+  eq(next(E.despawned), nil, "no entity touched after the world is gone")
 end)
 
 test("shutdown despawns everything", function()
@@ -501,7 +556,7 @@ test("every UI screen renders", function()
   pit:placeBet(1, 100); both()
   pit.heat.caught = true; pit.bet.void = true; both()
   pit:ringBell(); both()
-  pit.card[2].entity.dead = true; pit:update(0.3); both()
+  E.entities[pit.card[2].entityID].dead = true; pit:update(0.3); both()
   pit.message = ""; both()
   -- empty card
   pit:clearPit(); Roster.validate(function() return false end); pit:newCard(); both()

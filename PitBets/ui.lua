@@ -37,8 +37,9 @@ local function fighterBlock(pit, i)
     line = line .. string.format("   |   %d%% to win   |   pays %.2fx", math.floor(pit.card.probs[i] * 100 + 0.5), pit.card.mults[i])
   end
   ImGui.Text(line)
-  if f.entity then
-    local hp = Engine.healthPct(f.entity)
+  local ent = Engine.getEntity(f.entityID)
+  if ent then
+    local hp = Engine.healthPct(ent)
     if hp then ImGui.ProgressBar(math.max(0, math.min(1, hp / 100)), 320, 0, string.format("%d%% HP", math.floor(hp))) end
   end
 end
@@ -212,6 +213,7 @@ end
 function UI.hud(mod)
   local pit = mod.pit
   if pit.state ~= "betting" and pit.state ~= "fighting" and pit.state ~= "result" then return end
+  if Engine.playerDead() then return end
   local w = GetDisplayResolution()
   ImGui.SetNextWindowPos(w / 2 - 180, 40, ImGuiCond.Always)
   ImGui.SetNextWindowBgAlpha(0.55)
@@ -227,7 +229,8 @@ function UI.hud(mod)
     end
     for i = 1, 2 do
       local f = pit.card[i]
-      local hp = f.entity and Engine.healthPct(f.entity)
+      local ent = Engine.getEntity(f.entityID)
+      local hp = ent and Engine.healthPct(ent)
       colored(CORNER[i], f.name)
       if hp then ImGui.ProgressBar(math.max(0, math.min(1, hp / 100)), 360, 0, string.format("%d%%", math.floor(hp))) end
     end
@@ -235,6 +238,7 @@ function UI.hud(mod)
       if pit.bet.void then colored(RED, "Bet void - run!")
       else colored(DIM, string.format("Your bet: %s on %s (%.2fx)", eddies(pit.bet.stake), pit.card[pit.bet.side].name, pit.bet.mult)) end
     end
+    if pit.bookiesDue then colored(RED, string.format("Bookies' muscle in %ds", math.max(0, math.ceil(pit.bookiesDue)))) end
   end
   ImGui.End()
 end
